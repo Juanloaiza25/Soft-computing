@@ -83,7 +83,7 @@ if __name__ == '__main__':
     for ax, inst in zip(axes, valid_instances):
         opt = INSTANCES[inst]['optimal']
         data = [[r['best'] for r in all_results if r['instance']==inst and r['algo']==a] for a in ALGOS]
-        bp = ax.boxplot(data, labels=ALGOS, patch_artist=True, medianprops=dict(color='black', linewidth=2))
+        bp = ax.boxplot(data, tick_labels=ALGOS, patch_artist=True, medianprops=dict(color='black', linewidth=2))
         for patch, a in zip(bp['boxes'], ALGOS):
             patch.set_facecolor(COLORS[a]); patch.set_alpha(0.75)
         ax.axhline(opt, color='red', linestyle='--', linewidth=1.5, label=f'Optimo ({opt})')
@@ -126,10 +126,17 @@ if __name__ == '__main__':
             gv.append(avg_gap)
         bars = ax.bar(x_pos + i*width, gv, width, label=algo, color=COLORS[algo], alpha=0.8, edgecolor='black')
         for bar, val in zip(bars, gv):
-            ax.text(bar.get_x()+bar.get_width()/2, bar.get_height()+0.1, f'{val:.1f}%', ha='center', va='bottom', fontsize=8, fontweight='bold')
+            ypos = val + 0.1 if val >= 0 else val - 0.1   # ← FIX 1
+            va   = 'bottom'  if val >= 0 else 'top'        # ← FIX 1
+            ax.text(bar.get_x()+bar.get_width()/2, ypos, f'{val:.1f}%', ha='center', va=va, fontsize=8, fontweight='bold')
     ax.set_xticks(x_pos + width); ax.set_xticklabels(valid_instances)
     ax.set_ylabel('GAP promedio (%)'); ax.set_title('GAP promedio respecto al optimo')
     ax.legend(); ax.grid(axis='y', alpha=0.3)
+    ax.axhline(0, color='black', linewidth=0.9)            # ← FIX 2
+    all_gaps = [np.mean([r['gap'] for r in all_results if r['instance']==inst and r['algo']==algo])
+            for algo in ALGOS for inst in valid_instances]
+    margin = (max(all_gaps) - min(all_gaps)) * 0.15
+    ax.set_ylim(min(all_gaps) - margin, max(all_gaps) + margin)  # ← FIX 2
     plt.tight_layout()
     plt.savefig(os.path.join(CFG['OUT_DIR'], 'fig3_gap_bars_modular.png'), dpi=130)
     plt.close()

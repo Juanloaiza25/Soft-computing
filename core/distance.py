@@ -39,25 +39,31 @@ def nearest_neighbor(D, start):
     return tour
 
 
-def two_opt_fast(tour, D, max_iter=20):
-    n = len(tour)
-    t = tour.copy()
-    best_len = tour_length(t, D)
+def two_opt_fast(tour, D, max_iter=200):
+    """
+    2-opt local search con estrategia 'first improvement'.
+    Tras cada swap se reinicia la búsqueda para evitar usar
+    índices obsoletos (a, b quedan stale tras la reversión).
+    """
+    t = np.array(tour, dtype=np.int32)
+    n = len(t)
+    best_len = float(D[t, np.roll(t, -1)].sum())
 
     for _ in range(max_iter):
         improved = False
-        for i in range(1, n - 2):
+        for i in range(1, n - 1):
             a, b = t[i - 1], t[i]
             for j in range(i + 1, n):
                 c, d = t[j], t[(j + 1) % n]
-                delta = (D[a, c] + D[b, d]) - (D[a, b] + D[c, d])
+                delta = D[a, c] + D[b, d] - D[a, b] - D[c, d]
                 if delta < -1e-10:
                     t[i:j+1] = t[i:j+1][::-1]
                     best_len += delta
                     improved = True
-                    break
+                    break           # ← romper loop j: a,b ya son stale
             if improved:
-                break
+                break               # ← romper loop i: reiniciar pasada
         if not improved:
             break
-    return t, best_len
+
+    return t.tolist(), best_len

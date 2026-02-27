@@ -20,7 +20,8 @@ class GeneticAlgorithm:
 
     def _tournament(self, pop, fits):
         a, b = self.rng.sample(range(len(pop)), 2)
-        return pop[a] if fits[a] <= fits[b] else pop[b]
+        winner = a if fits[a] <= fits[b] else b
+        return pop[winner][:]   # copia
 
     def _ox_crossover(self, p1, p2):
         n = self.n
@@ -39,14 +40,15 @@ class GeneticAlgorithm:
         return tour
 
     def run(self, budget_seconds: float):
+        t0 = time.time()
         pop = self._init_pop()
         fits = np.array([tour_length(t, self.D) for t in pop])
         best_len = float(fits.min())
         history = [best_len]
 
-        t0 = time.time()
         while time.time() - t0 < budget_seconds:
             idx = np.argsort(fits)
+            elite_fits = fits[idx[:self.elite_k]].tolist()      # fits conocidos
             elites = [pop[i][:] for i in idx[:self.elite_k]]
             new_pop = elites[:]
             while len(new_pop) < self.pop_size:
@@ -55,12 +57,19 @@ class GeneticAlgorithm:
                 child = self._ox_crossover(p1, p2) if self.rng.random() < self.pc else p1[:]
                 child = self._mutate(child)
                 new_pop.append(child)
+            
             pop = new_pop
-            fits = np.array([tour_length(t, self.D) for t in pop])
+            # ✅ recalcular solo los hijos, reusar fits de élites
+            child_fits = [tour_length(t, self.D) for t in pop[self.elite_k:]]
+            fits = np.array(elite_fits + child_fits)
+            
             g = float(fits.min())
-            if g < best_len: best_len = g
+            if g < best_len:
+                best_len = g
             history.append(best_len)
+            
         return best_len, history
+
 
 
 def ga_solver(D, n, seed, budget):

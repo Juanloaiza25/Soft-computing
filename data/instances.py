@@ -1,42 +1,58 @@
 import os
 from core.tsplib_reader import read_tsplib
 
-TSPLIB_PATH = os.path.join(os.path.dirname(__file__), "tsplib")
-
-FILES = [
-    "berlin52.tsp",
-    "eil51.tsp",
-    "att48.tsp",
-    "st70.tsp"
-]
 
 OPTIMALS = {
     "berlin52": 7542,
-    "eil51": 426,
-    "att48": 10628,
-    "st70": 675
+    "eil51":    426,
+    "att48":    10628,
+    "st70":     675,
 }
 
-INSTANCES = {}
+FILES = [f"{name}.tsp" for name in OPTIMALS]
 
-# Check if TSPLIB_PATH exists, otherwise look for it in project root
-if not os.path.exists(TSPLIB_PATH):
-    TSPLIB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tsplib")
+# FIX 1: buscar TSPLIB_PATH en dos ubicaciones candidatas y fallar rápido
+_here = os.path.dirname(__file__)
+_candidates = [
+    os.path.join(_here, "tsplib"),
+    os.path.join(os.path.dirname(_here), "tsplib"),
+]
+TSPLIB_PATH = next((p for p in _candidates if os.path.isdir(p)), None)
+
+if TSPLIB_PATH is None:
+    raise FileNotFoundError(
+        "Directorio 'tsplib' no encontrado. Rutas buscadas:\n"
+        + "\n".join(f"  {p}" for p in _candidates)
+    )
+
+# Cargar instancias
+INSTANCES = {}
 
 for filename in FILES:
     path = os.path.join(TSPLIB_PATH, filename)
-    if os.path.exists(path):
-        coords, dimension, edge_type = read_tsplib(path)
-        name = filename.replace(".tsp", "")
-        INSTANCES[name] = {
-            "coords": coords,
-            "dimension": dimension,
-            "type": edge_type,
-            "optimal": OPTIMALS.get(name)
-        }
-    else:
-        print(f"Warning: File {path} not found.")
 
+    if not os.path.exists(path):
+        print(f"Warning: archivo no encontrado: {path}")
+        continue
+
+    coords, dimension, edge_type = read_tsplib(path)
+
+    # FIX 5: os.path.splitext es robusto ante extensiones inesperadas
+    name = os.path.splitext(filename)[0]
+
+    INSTANCES[name] = {
+        "coords":    coords,
+        "dimension": dimension,
+        # FIX 3: valor por defecto explícito si edge_type no está en el archivo
+        "type":      edge_type or "EUC_2D",
+        # FIX 2: KeyError inmediato si el nombre no está en OPTIMALS
+        "optimal":   OPTIMALS[name],
+    }
+
+# FIX 4: fallar con mensaje claro en lugar de código muerto
 if not INSTANCES:
-    # If no files found, use hardcoded data as fallback (optional, but good for testing)
-    pass
+    raise RuntimeError(
+        "No se cargó ninguna instancia TSPLIB. "
+        f"Verifica que el directorio '{TSPLIB_PATH}' contenga los archivos: "
+        + ", ".join(FILES)
+    )
