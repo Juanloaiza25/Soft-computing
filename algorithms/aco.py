@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from core.distance import tour_length
+from core.distance import tour_length, two_opt_fast
 
 
 class AntColonyOptimization:
@@ -19,8 +19,8 @@ class AntColonyOptimization:
       - tau**alpha se calculaba incluso cuando alpha=1.0 (potencia innecesaria ~2x)
     """
 
-    def __init__(self, D, n, n_ants=20, alpha=1.0, beta=5.0,
-                 rho=0.3, Q=100.0, seed=0):
+    def __init__(self, D, n, n_ants=25, alpha=1.2, beta=3.0,
+                 rho=0.15, Q=100, seed=0, two_opt=True):
         self.D       = D
         self.n       = n
         self.n_ants  = n_ants
@@ -29,6 +29,7 @@ class AntColonyOptimization:
         self.rho     = rho
         self.Q       = Q
         self.rng     = np.random.default_rng(seed)
+        self.two_opt = two_opt
 
         # Heuristica eta = 1/d (0 en diagonal)
         with np.errstate(divide='ignore', invalid='ignore'):
@@ -101,9 +102,14 @@ class AntColonyOptimization:
         t0       = time.time()
 
         while time.time() - t0 < budget_seconds:
-            # FIX: ya no se recalcula eta_b aqui — se usa self.eta_b del __init__
             tours   = [self._construct() for _ in range(self.n_ants)]
             lengths = [tour_length(t, self.D) for t in tours]
+
+        # 🔥 Aplicar 2-opt SOLO a la mejor hormiga
+            best_idx = int(np.argmin(lengths))
+            tours[best_idx], lengths[best_idx] = two_opt_fast(
+                tours[best_idx], self.D, max_iter=15
+            )
 
             it_best = min(lengths)
             if it_best < best_len:
@@ -117,6 +123,6 @@ class AntColonyOptimization:
 
 def aco_solver(D, n, seed, budget):
     return AntColonyOptimization(
-        D, n, n_ants=20, alpha=1.0, beta=5.0,
-        rho=0.3, Q=100.0, seed=seed
+        D, n, n_ants=25, alpha=1.2, beta=3.0,
+        rho=0.15, Q=100, seed=seed, two_opt=True
     ).run(budget)

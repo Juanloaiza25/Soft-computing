@@ -1,13 +1,14 @@
 import random
 import numpy as np
 import time
-from core.distance import tour_length, nearest_neighbor
+from core.distance import tour_length, nearest_neighbor, two_opt_fast
 
 class GeneticAlgorithm:
-    def __init__(self, D, n, pop_size=100, pc=0.85, pm=0.03, elite_k=2, seed=0):
+    def __init__(self, D, n, pop_size=60, pc=0.9, pm=0.1, elite_k=2, seed=0, use_two_opt=True):
         self.D = D; self.n = n; self.pop_size = pop_size
         self.pc = pc; self.pm = pm; self.elite_k = elite_k
         self.rng = random.Random(seed)
+        self.use_two_opt = use_two_opt
 
     def _init_pop(self):
         pop = []
@@ -48,29 +49,40 @@ class GeneticAlgorithm:
 
         while time.time() - t0 < budget_seconds:
             idx = np.argsort(fits)
-            elite_fits = fits[idx[:self.elite_k]].tolist()      # fits conocidos
+
+            # Élites
             elites = [pop[i][:] for i in idx[:self.elite_k]]
+            elite_fits = fits[idx[:self.elite_k]].tolist()
+
             new_pop = elites[:]
+            new_fits = elite_fits[:]   # ✅ inicializar correctamente
+
             while len(new_pop) < self.pop_size:
                 p1 = self._tournament(pop, fits)
                 p2 = self._tournament(pop, fits)
+
                 child = self._ox_crossover(p1, p2) if self.rng.random() < self.pc else p1[:]
                 child = self._mutate(child)
+
+                if self.use_two_opt and self.rng.random() < 0.4:
+                    child, length = two_opt_fast(child, self.D, max_iter=20)
+                else:
+                    length = tour_length(child, self.D)
+
                 new_pop.append(child)
-            
+                new_fits.append(length)
+
             pop = new_pop
-            # ✅ recalcular solo los hijos, reusar fits de élites
-            child_fits = [tour_length(t, self.D) for t in pop[self.elite_k:]]
-            fits = np.array(elite_fits + child_fits)
-            
+            fits = np.array(new_fits)
+
             g = float(fits.min())
             if g < best_len:
                 best_len = g
             history.append(best_len)
-            
+
         return best_len, history
 
 
 
 def ga_solver(D, n, seed, budget):
-    return GeneticAlgorithm(D, n, pop_size=100, pc=0.85, pm=0.03, elite_k=2, seed=seed).run(budget)
+    return GeneticAlgorithm(D, n, pop_size=60, pc=0.85, pm=0.1, elite_k=2, seed=seed, use_two_opt=True).run(budget)
